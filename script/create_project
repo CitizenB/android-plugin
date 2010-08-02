@@ -14,7 +14,7 @@ def usage {
 }
 def fail(s: String) = throw new RuntimeException(s)
 def take(i: Iterator[String]) = if (e.hasNext) e.next else null
-val e = args.elements
+val e = args.iterator
 
 val (project, pkg) = (take(e), take(e))
 while (e.hasNext) e.next match {
@@ -29,10 +29,10 @@ if (pkg == null || project == null)
   usage
 
 // android needs at least 2 package components for some weird reason
-if (!pkg.matches("""[a-z]+\.([a-z]+\.?)+[a-z]$"""))
+if (!pkg.matches("""(?i:[a-z]+\.([a-z]+\.?)+[a-z])"""))
   fail("invalid package name, need 2 package components (e.g. com.bar)")
 
-if (!project.matches("""[a-zA-Z]\w+"""))
+if (!project.matches("""(?i:[a-z]\w+)"""))
   fail("invalid project name: " + project)
 
 case class Config(
