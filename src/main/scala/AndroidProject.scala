@@ -25,7 +25,7 @@ object AndroidProject {
 abstract class AndroidProject(info: ProjectInfo) extends DefaultProject(info) {
   def proguardOption = ""
   def proguardInJars = runClasspath --- proguardExclude
-  def proguardExclude = libraryJarPath +++ mainCompilePath +++ mainResourcesPath +++ managedClasspath(Configurations.Provided)
+  def proguardExclude = libraryJarPath +++ mainCompilePath +++ mainResourcesPath +++ fullClasspath(Configurations.Provided)
   def libraryJarPath = androidJarPath +++ addonsJarPath
   override def unmanagedClasspath = super.unmanagedClasspath +++ libraryJarPath
   
@@ -249,13 +249,4 @@ abstract class AndroidProject(info: ProjectInfo) extends DefaultProject(info) {
   def directory(dir: Path) = fileTask(dir :: Nil) {
     FileUtilities.createDirectory(dir, log)
   }
-  
-  override def ivyXML =
-    <dependencies>
-       <exclude module="httpclient" conf="compile"/>
-       <exclude module="httpcore" conf="compile"/>              
-       <exclude module="commons-logging" conf="compile"/>              
-       <exclude module="commons-codec" conf="compile"/>      
-       <exclude module="scala-library" conf="compile"/>                    
-    </dependencies>
 }
