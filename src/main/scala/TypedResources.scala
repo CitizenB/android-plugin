@@ -1,14 +1,17 @@
 import sbt._
 import scala.xml._
 
-trait TypedResources extends AndroidProject {
-  def managedScalaPath = "src_managed" / "main" / "scala"
+trait TypedResources extends AndroidBase {
   /** Typed resource file to be generated, also includes interfaces to access these resources. */
   def typedResource = managedScalaPath / "TR.scala"
-  abstract override def mainSourceRoots = super.mainSourceRoots +++ managedScalaPath
-  def layoutResources = mainResPath / "layout" ** "*.xml"
+
+  // get layout resources from self and all dependent android projects.  FIXME: ignoring
+  // configurations at the moment.  We may eventually need something like
+  // {project,full}LayoutResources in analogy with sbt's projectClasspath(config) and
+  // fullClasspath(config).
+  def layoutResources = collectFromDagFlattened(true, _.mainResPath / "layout" ** "*.xml")
+
   override def compileAction = super.compileAction dependsOn generateTypedResources
-  override def cleanAction = super.cleanAction dependsOn cleanTask(managedScalaPath)
   override def watchPaths = super.watchPaths +++ layoutResources
   
   /** File task that generates `typedResource` if it's older than any layout resource, or doesn't exist */

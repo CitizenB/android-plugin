@@ -40,17 +40,10 @@ object TSSHelper {
   def allServiceDefs = services map { case (name, pkg) => genMethod(name, pkg) }
 }
 
-// FIXME: This should probably extend AndroidProject instead, except that
-// managedScalaPath isn't standardized anywhere; what is the sbt convention
-// for generated sources?
-trait TypedSystemServices extends TypedResources {
-  override def managedScalaPath = "src_managed" / "main" / "scala"
- 
+trait TypedSystemServices extends AndroidBase {
   def typedServices = managedScalaPath / "TypedSystemServices.scala"
 
-  abstract override def mainSourceRoots = super.mainSourceRoots +++ managedScalaPath
   override def compileAction = super.compileAction dependsOn generateTypedServices
-  override def cleanAction = super.cleanAction dependsOn cleanTask(managedScalaPath)
   override def watchPaths = super.watchPaths +++ androidJarPath
 
   import TSSHelper.allServiceDefs
