@@ -68,7 +68,7 @@ abstract class AndroidProject(info: ProjectInfo) extends DefaultProject(info) wi
 
   def aaptPackageTask(debug: Boolean) = execTask {<x>
     {aaptPath.absolutePath} package -f -M {androidManifestPath.absolutePath}
-        -I {androidJarPath.absolutePath} -F {resourcesApkPath.absolutePath}
+        -I {androidJarPath(targetSdkVersion).absolutePath} -F {resourcesApkPath.absolutePath}
        {if (debug) "--debug-mode" else ""}
        {aaptAutoAddOverlayArg}
        {assetDirArgs}

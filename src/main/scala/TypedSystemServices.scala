@@ -44,7 +44,9 @@ trait TypedSystemServices extends AndroidBase {
   def typedServices = managedScalaPath / "TypedSystemServices.scala"
 
   override def compileAction = super.compileAction dependsOn generateTypedServices
-  override def watchPaths = super.watchPaths +++ androidJarPath
+
+  // Only needed if we try to automatically extract services from android jar
+  // override def watchPaths = super.watchPaths +++ androidJarPath
 
   import TSSHelper.allServiceDefs
 

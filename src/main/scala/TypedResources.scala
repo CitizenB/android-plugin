@@ -17,7 +17,7 @@ trait TypedResources extends AndroidBase {
   /** File task that generates `typedResource` if it's older than any layout resource, or doesn't exist */
   lazy val generateTypedResources = fileTask(typedResource from layoutResources) {
     val Id = """@\+id/(.*)""".r
-    val androidJarLoader = ClasspathUtilities.toLoader(androidJarPath)
+    val androidJarLoader = ClasspathUtilities.toLoader(androidJarPath(apiLevel))
     val resources = layoutResources.get.flatMap { path =>
       XML.loadFile(path.asFile).descendant_or_self flatMap { node =>
         // all nodes
@@ -27,9 +27,9 @@ trait TypedResources extends AndroidBase {
             // if it looks like a full classname
             case Id(id) if node.label.contains('.') => Some(id, node.label)
             // otherwise it may be a widget
-            case Id(id) => try { Some(id,
-              androidJarLoader.loadClass("android.widget." + node.label).getName
-            ) } catch { case _ => None }
+            case Id(id) => try {
+              Some(id, androidJarLoader.loadClass("android.widget." + node.label).getName)
+            } catch { case _ => None }
             case _ => None
           }
         }

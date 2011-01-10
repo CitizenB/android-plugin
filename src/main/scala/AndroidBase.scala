@@ -1,6 +1,9 @@
 import sbt._
 import Process._
 
+import java.util.Properties
+import java.io.FileInputStream
+
 import collection.immutable
 
 // Basic info about android sdk, android.jar, add-on jars, etc.  This is shared between
@@ -23,34 +26,16 @@ trait AndroidBase extends DefaultProject with ManagedSourcePath {
   // resources by fully-qualified package names, if needed.
 
   def aaptGenerateTask = execTask {<x>
-      {aaptPath.absolutePath} package -m -M {androidManifestPath.absolutePath}
-         -I {androidJarPath.absolutePath} -J {managedJavaPath.absolutePath}
-        {aaptAutoAddOverlayArg}
-        {resourceDirArgs}
-    </x>} dependsOn directory(managedJavaPath)
+                                   {aaptPath.absolutePath} package -m -M {androidManifestPath.absolutePath}
+                                   -I {androidJarPath(targetSdkVersion).absolutePath} -J {managedJavaPath.absolutePath}
+                                   {aaptAutoAddOverlayArg}
+                                   {resourceDirArgs}
+                                   </x>} dependsOn directory(managedJavaPath)
 
   // Note:  --auto-add-overlay is what allows "lazy" library projects; without this undefined resource references in library projects
   // will get errors like "error: Resource at app_name appears in overlay but not in the base package; use <add-resource> to add."
   def aaptAutoAddOverlay = true
   def aaptAutoAddOverlayArg = if (aaptAutoAddOverlay) "--auto-add-overlay" else ""
-
-  // FIXME:  use filename separator...
-  def nameToPath(pkgName: String) = pkgName split '.' mkString "/"
-
-  // output merged (with libraries) R.java using specified package name
-  def genResourcesToPackage(pkgName: String) = {
-    val packagePath = Path.fromString(managedJavaPath, nameToPath(pkgName))
-
-    execTask { <x>mkdir -p {packagePath.get}</x> } && execTask {
-      <x>
-        {aaptPath.absolutePath} package -m -M {androidManifestPath.absolutePath}
-           {resourceDirArgs}
-           -I {androidJarPath.absolutePath}
-           -J {managedJavaPath.absolutePath} --custom-package {pkgName}
-           --auto-add-overlay
-      </x>  
-    }
-  }
 
   import AndroidBase._
 
@@ -74,23 +59,32 @@ trait AndroidBase extends DefaultProject with ManagedSourcePath {
   def androidManifestName = DefaultAndroidManifestName
   def androidManifestPath = mainSourcePath / androidManifestName
   def androidJarName = DefaultAndroidJarName
-  def androidJarPath = sdkRoot / "platforms" / ("android-"+apiLevel) / androidJarName
-  def libraryJarPath = androidJarPath +++ addonsJarPath
+  def androidJarPath(api: Int) = sdkRoot / "platforms" / ("android-"+api) / androidJarName
+  def libraryJarPath = androidJarPath(apiLevel) +++ addonsJarPath
 
   // Note: we want to add Android platform and add-on libraries to the provided classpath, not the
   // unmanaged classpath.  The latter gets added to all classpaths, which causes messiness during
   // deployment scenarios (hello, proguard).
+  override def managedClasspath(c: Configuration) =
+    super.managedClasspath(c) +++ (if (c == Configurations.Provided) libraryJarPath else Path.emptyPathFinder)
 
-  //override def unmanagedClasspath = super.unmanagedClasspath +++ libraryJarPath
-  override def managedClasspath(c: Configuration) = super.managedClasspath(c) +++ (if (c == Configurations.Provided) libraryJarPath else Path.emptyPathFinder)
+  lazy val cachedManifest = new CachedXmlFile(androidManifestPath, log)
+  def manifest: xml.Elem = cachedManifest.get
 
-  lazy val manifest: xml.Elem = xml.XML.loadFile(androidManifestPath.asFile)
+  lazy val sdkRevision: Int = getSdkRevision(sdkRoot)
 
-  def sdkRevision: Int = 8
+  /**
+   * This is the api level which we compile against.  It is the minimum api level, but aapt can use
+   * things at the target api level since xml files can include newer tags/attribs which will
+   * (allegedly) be ignored during deployment.  Defaults to the uses-sdk minSdkVersion attribute
+   * or, if that is not present, the level implied by the platform name (eg android-2.1 is api
+   * level 7).
+   */
   def apiLevel: Int = minSdkVersion.getOrElse(platformName2ApiLevel(androidPlatformName))
 
-  lazy val minSdkVersion = usesSdk("minSdkVersion")
-  lazy val manifestPackage = manifest.attribute("package").getOrElse(error("package not defined")).text
+  def minSdkVersion = usesSdk("minSdkVersion")
+  def targetSdkVersion: Int = usesSdk("targetSdkVersion").orElse(minSdkVersion).getOrElse(apiLevel)
+  def manifestPackage = manifest.attribute("package").getOrElse(error("package not defined")).text
   def usesSdk(s: String): Option[Int] = (manifest \ "uses-sdk").first.attribute(manifestSchema, s).map(_.text.toInt)
 
   def addonsPath = sdkRoot / "add-ons" / ("google_apis-" + apiLevel) / "libs"
@@ -181,4 +175,21 @@ object AndroidBase {
 
   private val intLevel = """^android-(\d+)$""".r
   private val otherLevel = """^android-(\s+)$""".r
+
+  /** interpret a path as a properties file */
+  implicit def path2props(p: Path): Properties = {
+    val retval = new Properties
+    retval.load(new FileInputStream(p.asFile))
+    retval
+  }
+
+  def getSdkRevision(sdkRoot: Path): Int = {
+    val maybeRevision = sdkRoot / "tools" / "source.properties" getProperty "Pkg.Revision" 
+
+    // no Option.apply in scala 2.7, doh
+    if (maybeRevision == null)
+      throw new Exception("cannot find sdk revision")
+    else
+      maybeRevision.toInt
+  }
 }
